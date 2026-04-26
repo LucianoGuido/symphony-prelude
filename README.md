@@ -7,7 +7,7 @@
 This CLI shows you if yours does -
 and what AI search actually sees.
 
-[Quick Start](#quick-start) · [How It Works](#how-it-works) · [Commands](#commands) · [Integrating with Conservatory](#integration-with-conservatory)
+[Quick Start](#quick-start) · [Fix with Conservatory](#fix-with-conservatory) · [How It Works](#how-it-works) · [Commands](#commands)
 
 </div>
 
@@ -39,6 +39,16 @@ Prelude gives you two views into AI search:
 Prelude tells you what the model did.
 
 Conservatory tells you what to fix — and fixes it for you.
+
+## Run the CLI, then fix with Conservatory
+
+```bash
+npx symphony-prelude audit https://conservatory.app
+```
+
+Prelude gives you a local AI-readiness report.
+
+If the report finds missing schema, weak headings, unclear metadata, thin trust signals, or AI crawler issues, bring the findings into **[Conservatory](https://conservatory.app)** to generate reviewable GitHub PRs with the exact code changes.
 
 ## A new category
 
@@ -81,6 +91,26 @@ npx symphony-prelude trace "product overview" --domain your-site.com
 
 # Trace + run local AEO audit on every discovered URL
 npx symphony-prelude trace "best CRM for startups" --audit --format markdown
+```
+
+## Fix with Conservatory
+
+Prelude is the free diagnostic layer:
+
+```bash
+npx symphony-prelude audit https://your-site.com --format markdown --output prelude-report.md
+```
+
+Conservatory is the remediation layer:
+
+1. Run the audit.
+2. Review the findings.
+3. Use **[Conservatory](https://conservatory.app)** to turn fixable issues into GitHub PRs.
+
+That loop is the point:
+
+```
+visible problem -> npx symphony-prelude audit -> Conservatory fixes it
 ```
 
 ---

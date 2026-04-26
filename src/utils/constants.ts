@@ -5,12 +5,12 @@
 export const PRELUDE_VERSION = "0.2.1"
 export const PRELUDE_NAME = "Prelude"
 export const PRELUDE_FULL_NAME = "Prelude by Symphony"
-export const PRELUDE_USER_AGENT = `Prelude/${PRELUDE_VERSION} (+https://github.com/LucianoGuido/symphony-prelude)`
+export const PRELUDE_REPO_URL = "https://github.com/LucianoGuido/symphony-prelude"
+export const PRELUDE_USER_AGENT = `Prelude/${PRELUDE_VERSION} (+${PRELUDE_REPO_URL})`
 
 export const SYMPHONY_URL = "https://symphonyui.com"
 export const CONSERVATORY_URL = "https://conservatory.app"
 export const CONSERVATORY_FIX_URL = `${CONSERVATORY_URL}/fix`
-export const PRELUDE_REPO_URL = "https://github.com/LucianoGuido/symphony-prelude"
 
 export const CTA_MESSAGE = `\n🔧 Fix these issues automatically with Conservatory → ${CONSERVATORY_URL}\n   Review-First Auto-Fix™ generates GitHub PRs for every finding.\n`
 

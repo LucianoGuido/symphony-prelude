@@ -24,7 +24,7 @@ import { formatMarkdown } from "./formatters/markdown.js"
 import { formatTraceTerminal } from "./formatters/trace-terminal.js"
 import { formatTraceCsv } from "./formatters/trace-csv.js"
 import { formatTraceMarkdown } from "./formatters/trace-markdown.js"
-import { PRELUDE_FULL_NAME, PRELUDE_VERSION, CONSERVATORY_URL } from "./utils/constants.js"
+import { PRELUDE_FULL_NAME, PRELUDE_VERSION, CONSERVATORY_URL, PRELUDE_REPO_URL } from "./utils/constants.js"
 import type { OutputFormat, TraceResult } from "./utils/types.js"
 
 const program = new Command()
@@ -33,7 +33,7 @@ program
   .name("symphony-prelude")
   .version(PRELUDE_VERSION)
   .description(
-    `${PRELUDE_FULL_NAME} — Open-source LLM Readiness Audit CLI\nhttps://github.com/LucianoGuido/symphony-prelude`,
+    `${PRELUDE_FULL_NAME} — Open-source LLM Readiness Audit CLI\n${PRELUDE_REPO_URL}`,
   )
 
 // ── Audit command ──────────────────────────────────────────────────────────
