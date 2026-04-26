@@ -21,7 +21,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LucianoGuido/symphony-prelude.git"
+    "url": "git+https://github.com/LucianoGuido/symphony-prelude.git"
   },
   "homepage": "https://github.com/LucianoGuido/symphony-prelude#readme",
   "bugs": {
