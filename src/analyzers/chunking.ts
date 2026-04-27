@@ -27,11 +27,14 @@ export function analyzeChunking(html: string): ChunkingReport {
   let viableChunks = 0
   let totalChunkTokens = 0
   let longParagraphs = 0
+  let candidateParagraphs = 0
+  const minCandidateTokens = Math.round(CHUNK_MIN_TOKENS * 0.5)
 
   for (const p of paragraphMatches) {
     const text = p.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     const words = text.split(/\s+/).filter(Boolean).length
     const tokens = Math.round(words * TOKENS_PER_WORD)
+    if (tokens >= minCandidateTokens) candidateParagraphs++
     if (tokens >= CHUNK_MIN_TOKENS && tokens <= CHUNK_MAX_TOKENS) { viableChunks++; totalChunkTokens += tokens }
     if (tokens > CHUNK_MAX_TOKENS * 1.5) longParagraphs++
   }
@@ -40,7 +43,9 @@ export function analyzeChunking(html: string): ChunkingReport {
   let quality: ChunkingReport["quality"]
   if (totalParagraphs === 0 || totalWords < 50) quality = "poor"
   else {
-    const r = viableChunks / Math.max(1, totalParagraphs)
+    // Short UI blurbs, badges, footer copy, and card labels are often valid
+    // page text, but they are not meaningful LLM extraction candidates.
+    const r = viableChunks / Math.max(1, candidateParagraphs)
     quality = r >= 0.5 ? "excellent" : r >= 0.3 ? "good" : r >= 0.15 ? "fair" : "poor"
   }
 
