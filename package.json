@@ -1,6 +1,6 @@
 {
   "name": "symphony-prelude",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Open-source CLI that audits any webpage for AI Search Readiness — revealing why LLMs fail to cite your content.",
   "keywords": [
     "aeo",

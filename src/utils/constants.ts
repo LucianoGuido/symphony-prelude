@@ -2,7 +2,7 @@
  * Prelude — Brand constants and configuration
  */
 
-export const PRELUDE_VERSION = "0.2.1"
+export const PRELUDE_VERSION = "0.2.2"
 export const PRELUDE_NAME = "Prelude"
 export const PRELUDE_FULL_NAME = "Prelude by Symphony"
 export const PRELUDE_REPO_URL = "https://github.com/LucianoGuido/symphony-prelude"
