@@ -168,6 +168,12 @@ Uses the **Responses API** with `tools: [{ type: "web_search_preview" }]`. Captu
 
 > **Honesty note:** This traces OpenAI's `web_search_preview` API tool — which approximates but does **not** replicate ChatGPT Search exactly. The ChatGPT product may use personalisation, session context, and additional ranking signals not available via the API. `topics` are not automatically populated (the API does not return them structured); `summary` comes from `action.sources[].snippet` when available. Results are observable and reproducible, but may differ from a logged-in ChatGPT session.
 
+### Pro Tip: No OpenAI Key? No Problem.
+
+The trace command requires an OpenAI API key to simulate real-time LLM behavior. If you don’t have a key or want to see the results without any setup, you can run a free trace directly on Conservatory.app.
+
+Get the same deep insights into what ChatGPT sees, plus immediate access to our remediation workflow and the April 28 Founders Cohort.
+
 ```bash
 export OPENAI_API_KEY=sk-...
 
