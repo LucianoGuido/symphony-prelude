@@ -164,6 +164,10 @@ export interface TraceSource {
   title: string
   /** The text snippet cited inline, if available */
   snippet?: string
+  /** Action refs that surfaced this URL, e.g. search#0, open#1, citation#0 */
+  refs?: string[]
+  /** Discovery roles for this URL, e.g. source, opened, citation, find */
+  sourceTypes?: string[]
 }
 
 /**
@@ -206,6 +210,10 @@ export interface TraceEntry {
   opened: boolean
   /** Inline citation text from model annotations, if present */
   citation?: string
+  /** Action refs that surfaced this URL, e.g. search#0, open#1, citation#0 */
+  refs?: string[]
+  /** Discovery roles for this URL, e.g. source, opened, citation, find */
+  sourceTypes?: string[]
   /** Local AEO audit score (0-100), populated when --audit flag used */
   auditScore?: number
   /** Reserved for future local audit H1 text extraction; currently not populated */

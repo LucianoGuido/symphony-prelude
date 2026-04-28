@@ -2,7 +2,7 @@
  * Prelude — Brand constants and configuration
  */
 
-export const PRELUDE_VERSION = "0.2.2"
+export const PRELUDE_VERSION = "0.3.0"
 export const PRELUDE_NAME = "Prelude"
 export const PRELUDE_FULL_NAME = "Prelude by Symphony"
 export const PRELUDE_REPO_URL = "https://github.com/LucianoGuido/symphony-prelude"
@@ -12,7 +12,11 @@ export const SYMPHONY_URL = "https://symphonyui.com"
 export const CONSERVATORY_URL = "https://conservatory.app"
 export const CONSERVATORY_FIX_URL = `${CONSERVATORY_URL}/fix`
 
-export const CTA_MESSAGE = `\n🔧 Fix these issues automatically with Conservatory → ${CONSERVATORY_URL}\n   Review-First Auto-Fix™ generates GitHub PRs for every finding.\n`
+export const CONSERVATORY_REPORT_CTA =
+  `Need a full AI search audit with auto-fix, GitHub PRs, and a downloadable PDF report?\n` +
+  `Run it in Conservatory: ${CONSERVATORY_URL}`
+
+export const CTA_MESSAGE = `\n→ ${CONSERVATORY_REPORT_CTA}\n`
 
 export const CTA_URL_TEMPLATE = (url: string) =>
   `${CONSERVATORY_FIX_URL}?url=${encodeURIComponent(url)}&utm_source=prelude&utm_medium=cli&utm_campaign=audit`

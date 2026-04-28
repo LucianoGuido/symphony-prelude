@@ -4,7 +4,7 @@
  * Prelude CLI — LLM Readiness Audit + ChatGPT Search Trace
  *
  * Usage:
- *   symphony-prelude audit <url> [--format json|csv|markdown|terminal] [--output file]
+ *   symphony-prelude audit <url>
  *   symphony-prelude trace <query> [options]
  *   symphony-prelude trace --query-file queries.txt [options]
  *
@@ -18,14 +18,9 @@ import { readFile } from "node:fs/promises"
 import { runAudit } from "./commands/audit.js"
 import { runTrace } from "./commands/trace.js"
 import { formatTerminal } from "./formatters/terminal.js"
-import { formatJson } from "./formatters/json.js"
-import { formatCsv } from "./formatters/csv.js"
-import { formatMarkdown } from "./formatters/markdown.js"
 import { formatTraceTerminal } from "./formatters/trace-terminal.js"
-import { formatTraceCsv } from "./formatters/trace-csv.js"
-import { formatTraceMarkdown } from "./formatters/trace-markdown.js"
-import { PRELUDE_FULL_NAME, PRELUDE_VERSION, CONSERVATORY_URL, PRELUDE_REPO_URL } from "./utils/constants.js"
-import type { OutputFormat, TraceResult } from "./utils/types.js"
+import { CONSERVATORY_REPORT_CTA, PRELUDE_FULL_NAME, PRELUDE_VERSION, PRELUDE_REPO_URL } from "./utils/constants.js"
+import type { TraceResult } from "./utils/types.js"
 
 const program = new Command()
 
@@ -33,57 +28,28 @@ program
   .name("symphony-prelude")
   .version(PRELUDE_VERSION)
   .description(
-    `${PRELUDE_FULL_NAME} — Open-source LLM Readiness Audit CLI\n${PRELUDE_REPO_URL}`,
+    `${PRELUDE_FULL_NAME} — Terminal-first LLM Readiness Diagnostic CLI\n${PRELUDE_REPO_URL}`,
   )
 
 // ── Audit command ──────────────────────────────────────────────────────────
 
 program
   .command("audit")
-  .description("Audit a webpage for AI search readiness (no API key required)")
+  .description("Audit a webpage for AI search readiness in your terminal (no API key required)")
   .argument("<url>", "URL to audit")
-  .option("-f, --format <format>", "Output format: terminal, json, csv, markdown", "terminal")
-  .option("-o, --output <file>", "Write output to file instead of stdout")
-  .action(async (url: string, opts: { format: string; output?: string }) => {
-    const format = opts.format as OutputFormat
-
+  .action(async (url: string) => {
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
       url = `https://${url}`
     }
 
-    const spinner =
-      format === "terminal"
-        ? ora({ text: "Fetching and analyzing...", spinner: "dots" }).start()
-        : null
+    const spinner = ora({ text: "Fetching and analyzing...", spinner: "dots" }).start()
 
     try {
       const result = await runAudit(url)
-      spinner?.stop()
-
-      let output: string
-      switch (format) {
-        case "json":
-          output = formatJson(result)
-          break
-        case "csv":
-          output = formatCsv(result)
-          break
-        case "markdown":
-          output = formatMarkdown(result)
-          break
-        default:
-          output = formatTerminal(result)
-      }
-
-      if (opts.output) {
-        const { writeFile } = await import("node:fs/promises")
-        await writeFile(opts.output, output, "utf-8")
-        console.log(chalk.green(`✓ Report saved to ${opts.output}`))
-      } else {
-        console.log(output)
-      }
+      spinner.stop()
+      console.log(formatTerminal(result))
     } catch (error) {
-      spinner?.fail("Audit failed")
+      spinner.fail("Audit failed")
       console.error(chalk.red(error instanceof Error ? error.message : "Unknown error"))
       process.exit(1)
     }
@@ -94,20 +60,18 @@ program
 program
   .command("trace")
   .description(
-    "Trace what OpenAI web_search_preview sees for a query — approximates ChatGPT Search behaviour.\n" +
+    "Trace what OpenAI web_search_preview sees for a query in your terminal — approximates ChatGPT Search behaviour.\n" +
       "Requires OPENAI_API_KEY. Uses Responses API with web_search_preview tool.",
   )
   .argument("[query]", "Search query to trace (omit when using --query-file)")
   .option("-n, --max-results <n>", "Max results to capture per query", "5")
-  .option("-f, --format <format>", "Output format: terminal, json, csv, markdown", "terminal")
-  .option("-o, --output <file>", "Write output to file")
   .option(
     "--query-file <file>",
     "Path to a text file with one query per line (batch mode)",
   )
   .option(
     "--domain <domain>",
-    "Restrict search to this domain (adds site:<domain> prefix automatically)",
+    "Restrict search to this domain and filter results to matching subdomains",
   )
   .option(
     "--audit",
@@ -124,8 +88,6 @@ program
       query: string | undefined,
       opts: {
         maxResults: string
-        format: string
-        output?: string
         queryFile?: string
         domain?: string
         audit: boolean
@@ -133,11 +95,10 @@ program
       },
     ) => {
       const maxResults = parseInt(opts.maxResults, 10)
-      const format = opts.format as OutputFormat
 
       // ── Batch mode: --query-file ─────────────────────────────────────
       if (opts.queryFile) {
-        await runBatchTrace(opts.queryFile, maxResults, format, opts)
+        await runBatchTrace(opts.queryFile, maxResults, opts)
         return
       }
 
@@ -152,7 +113,7 @@ program
       }
 
       const spinner = ora({
-        text: `Tracing: "${query}"${opts.domain ? ` on ${opts.domain}` : ""}...`,
+        text: `Tracing OpenAI web search for "${query}"${opts.domain ? ` on ${opts.domain}` : ""}... this can take a few seconds`,
         spinner: "dots",
       }).start()
 
@@ -165,15 +126,7 @@ program
         })
         spinner.stop()
 
-        const output = formatTraceOutput(result, format)
-
-        if (opts.output) {
-          const { writeFile } = await import("node:fs/promises")
-          await writeFile(opts.output, output, "utf-8")
-          console.log(chalk.green(`✓ Trace saved to ${opts.output}`))
-        } else {
-          console.log(output)
-        }
+        console.log(formatTraceTerminal(result))
       } catch (error) {
         spinner.fail("Trace failed")
         console.error(
@@ -186,25 +139,10 @@ program
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function formatTraceOutput(result: TraceResult, format: OutputFormat): string {
-  switch (format) {
-    case "json":
-      return JSON.stringify(result, null, 2)
-    case "csv":
-      return formatTraceCsv(result)
-    case "markdown":
-      return formatTraceMarkdown(result)
-    default:
-      return formatTraceTerminal(result)
-  }
-}
-
 async function runBatchTrace(
   queryFile: string,
   maxResults: number,
-  format: OutputFormat,
   opts: {
-    output?: string
     domain?: string
     audit: boolean
     model: string
@@ -239,7 +177,7 @@ async function runBatchTrace(
   for (let i = 0; i < queries.length; i++) {
     const q = queries[i]
     const spinner = ora({
-      text: `[${i + 1}/${queries.length}] "${q}"`,
+      text: `[${i + 1}/${queries.length}] Tracing OpenAI web search for "${q}"${opts.domain ? ` on ${opts.domain}` : ""}... this can take a few seconds`,
       spinner: "dots",
     }).start()
 
@@ -272,33 +210,7 @@ async function runBatchTrace(
     process.exit(1)
   }
 
-  let output: string
-  if (format === "json") {
-    output = JSON.stringify(allResults, null, 2)
-  } else if (format === "csv") {
-    // Combine all CSVs; keep header only once
-    const csvParts = allResults.map((r, i) => {
-      const csv = formatTraceCsv(r)
-      return i === 0 ? csv : csv.split("\n").slice(1).join("\n")
-    })
-    output = csvParts.join("\n")
-  } else if (format === "markdown") {
-    output = allResults.map((r) => formatTraceMarkdown(r)).join("\n\n---\n\n")
-  } else {
-    output = allResults.map((r) => formatTraceTerminal(r)).join("\n")
-  }
-
-  if (opts.output) {
-    const { writeFile } = await import("node:fs/promises")
-    await writeFile(opts.output, output, "utf-8")
-    console.log(
-      chalk.green(
-        `\n✓ Batch trace saved to ${opts.output} (${allResults.length} queries)`,
-      ),
-    )
-  } else {
-    console.log(output)
-  }
+  console.log(allResults.map((r) => formatTraceTerminal(r)).join("\n"))
 
   // Summary
   const totalSources = allResults.reduce((s, r) => s + r.sources.length, 0)
@@ -310,7 +222,7 @@ async function runBatchTrace(
   )
   console.log(
     chalk.dim(
-      `  → Fix issues automatically with Conservatory: ${CONSERVATORY_URL}`,
+      `  → ${CONSERVATORY_REPORT_CTA.replace("\n", "\n    ")}`,
     ),
   )
 }

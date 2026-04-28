@@ -9,7 +9,8 @@
 
 import chalk from "chalk"
 import type { TraceResult } from "../utils/types.js"
-import { PRELUDE_FULL_NAME, CONSERVATORY_URL } from "../utils/constants.js"
+import { PRELUDE_FULL_NAME, CONSERVATORY_REPORT_CTA } from "../utils/constants.js"
+import { deriveTraceInsights, deriveTraceTopUrlRows } from "./trace-report.js"
 
 export function formatTraceTerminal(result: TraceResult): string {
   const lines: string[] = []
@@ -70,55 +71,75 @@ export function formatTraceTerminal(result: TraceResult): string {
     }
   }
 
-  // ── Results ────────────────────────────────────────────────────────────
+  // ── Top URLs ───────────────────────────────────────────────────────────
   if (result.results.length > 0) {
+    const rows = deriveTraceTopUrlRows(result)
     lines.push("")
-    lines.push(chalk.bold(`  Top Results (${result.results.length})`))
+    lines.push(chalk.bold(`  Top URLs (${rows.length})`))
     lines.push(chalk.dim("  " + "─".repeat(48)))
+    lines.push(
+      "  " +
+        [
+          chalk.bold("Rank".padEnd(4)),
+          chalk.bold("URL".padEnd(34)),
+          chalk.bold("Title".padEnd(30)),
+          chalk.bold("Snippet".padEnd(38)),
+          chalk.bold("Type".padEnd(18)),
+          chalk.bold("Ref".padEnd(24)),
+        ].join("  "),
+    )
+    lines.push(chalk.dim("  " + "─".repeat(158)))
 
-    for (const r of result.results) {
-      const openedBadge = r.opened ? chalk.green(" [OPENED]") : ""
+    for (const row of rows) {
+      lines.push(
+        "  " +
+          [
+            `#${row.rank}`.padEnd(4),
+            chalk.cyan(fit(row.url, 34)),
+            fit(row.title, 30),
+            chalk.dim(fit(row.snippet || "no snippet", 38)),
+            fit(row.type, 18),
+            chalk.green(fit(row.ref, 24)),
+          ].join("  "),
+      )
+    }
+
+    const audited = result.results.filter((r) => r.auditScore !== undefined)
+    if (audited.length > 0) {
       lines.push("")
-      lines.push(
-        `  ${chalk.bold(`#${r.rank}`)}${openedBadge} ${chalk.cyan(r.url)}`,
-      )
-      if (r.title) lines.push(`     ${chalk.bold(r.title)}`)
-      lines.push(
-        chalk.dim(`     Type: ${r.pageType}`) +
-          (r.topics.length > 0
-            ? chalk.dim(` | Topics: ${r.topics.join(", ")}`)
-            : ""),
-      )
-      if (r.summary) {
-        lines.push(chalk.dim(`     ${truncate(r.summary, 160)}`))
-      }
-      if (r.citation && r.citation !== r.summary) {
-        lines.push(chalk.dim(`     Citation: "${truncate(r.citation, 120)}"`))
-      }
-
-      // AEO audit enrichment
-      if (r.auditScore !== undefined) {
-        const scoreColor =
-          r.auditScore >= 75
-            ? chalk.green
-            : r.auditScore >= 50
-              ? chalk.yellow
-              : chalk.red
-        lines.push(
-          `     AEO Score: ${scoreColor(`${r.auditScore}/100`)}` +
-            (r.schemaTypes && r.schemaTypes.length > 0
-              ? chalk.dim(` | Schema: ${r.schemaTypes.join(", ")}`)
-              : "") +
-            (r.hasFaq ? chalk.dim(" | FAQ ✓") : ""),
-        )
-        if (r.auditIssues && r.auditIssues.length > 0) {
-          for (const issue of r.auditIssues) {
-            const c = issue.severity === "critical" ? chalk.red : chalk.yellow
-            lines.push(c(`     [${issue.severity.toUpperCase()}] ${issue.title}`))
+      lines.push(chalk.bold("  Audit Details"))
+      for (const r of audited) {
+        if (r.auditScore !== undefined) {
+          const scoreColor =
+            r.auditScore >= 75
+              ? chalk.green
+              : r.auditScore >= 50
+                ? chalk.yellow
+                : chalk.red
+          lines.push(
+            `    #${r.rank} ${scoreColor(`${r.auditScore}/100`)}` +
+              (r.schemaTypes && r.schemaTypes.length > 0
+                ? chalk.dim(` | Schema: ${r.schemaTypes.join(", ")}`)
+                : "") +
+              (r.hasFaq ? chalk.dim(" | FAQ ✓") : ""),
+          )
+          if (r.auditIssues && r.auditIssues.length > 0) {
+            for (const issue of r.auditIssues) {
+              const c = issue.severity === "critical" ? chalk.red : chalk.yellow
+              lines.push(c(`       [${issue.severity.toUpperCase()}] ${issue.title}`))
+            }
           }
         }
       }
     }
+
+    lines.push("")
+    lines.push(chalk.bold("  Trace Insights"))
+    lines.push(chalk.dim("  " + "─".repeat(48)))
+    const insights = deriveTraceInsights(result)
+    appendInsightGroup(lines, "Good signals", insights.goodSignals, chalk.green)
+    appendInsightGroup(lines, "Warnings", insights.warnings, chalk.yellow)
+    appendInsightGroup(lines, "Opportunities", insights.opportunities, chalk.cyan)
   } else if (!result.isSimulated) {
     lines.push("")
     lines.push(
@@ -132,16 +153,9 @@ export function formatTraceTerminal(result: TraceResult): string {
 
   // ── CTA ───────────────────────────────────────────────────────────────
   lines.push("")
-  lines.push(
-    chalk.dim(
-      `  → Run ${chalk.cyan("symphony-prelude audit <url>")} on any result to check its AEO readiness.`,
-    ),
-  )
-  lines.push(
-    chalk.dim(
-      `  → Fix issues automatically with Conservatory: ${CONSERVATORY_URL}`,
-    ),
-  )
+  const [ctaQuestion, ctaAction] = CONSERVATORY_REPORT_CTA.split("\n")
+  lines.push(chalk.dim(`  → ${ctaQuestion}`))
+  lines.push(chalk.dim(`    ${ctaAction}`))
   lines.push("")
 
   return lines.join("\n")
@@ -149,6 +163,24 @@ export function formatTraceTerminal(result: TraceResult): string {
 
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…"
+}
+
+function fit(s: string, width: number): string {
+  const value = truncate(s.replace(/\s+/g, " ").trim(), width)
+  return value.padEnd(width)
+}
+
+function appendInsightGroup(
+  lines: string[],
+  label: string,
+  items: string[],
+  color: (value: string) => string,
+): void {
+  if (items.length === 0) return
+  lines.push(`  ${color(label + ":")}`)
+  for (const item of items) {
+    lines.push(chalk.dim(`    - ${item}`))
+  }
 }
 
 function formatActionDetail(action: TraceResult["searchActions"][number]): string {

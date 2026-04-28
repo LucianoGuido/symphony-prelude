@@ -95,6 +95,11 @@ interface RawSource {
   snippet?: string
 }
 
+interface TraceSourceMeta {
+  refs?: string[]
+  sourceTypes?: string[]
+}
+
 interface RawAnnotation {
   type: string
   url?: string
@@ -142,6 +147,7 @@ export async function runTrace(
 
   // Apply domain restriction if provided, unless the query already contains site:
   const effectiveQuery = buildEffectiveQuery(query, options.domain)
+  const domainFilter = buildDomainFilter(options.domain ?? extractSiteDomain(effectiveQuery))
 
   const { default: OpenAI } = await import("openai")
   const client = new OpenAI({ apiKey })
@@ -165,7 +171,7 @@ export async function runTrace(
       include: (["web_search_call.action.sources"] as unknown) as Parameters<
         typeof client.responses.create
       >[0]["include"],
-      input: buildUserPrompt(effectiveQuery, maxResults),
+      input: buildUserPrompt(effectiveQuery, maxResults, domainFilter),
     })
 
     // The SDK types response.output as ResponseOutputItem[], but `action` is
@@ -192,6 +198,10 @@ export async function runTrace(
   const sources: TraceSource[] = []
   let responseText = ""
   const openedUrls = new Set<string>()
+  let searchIndex = 0
+  let openIndex = 0
+  let findIndex = 0
+  let citationIndex = 0
 
   for (const item of rawOutput) {
     // ── web_search_call items ─────────────────────────────────────────────
@@ -204,31 +214,44 @@ export async function runTrace(
 
         if (actionType === "search") {
           const a = action as RawSearchAction
+          const ref = `search#${searchIndex++}`
           // queries is an array of the actual search strings issued
           const queryStr = (a.queries ?? []).join("; ")
           searchActions.push({ type: "search", query: queryStr || effectiveQuery })
 
           // Ingest sources from the action
           for (const s of a.sources ?? []) {
-            addTraceSource(sources, s)
+            addTraceSource(sources, s, { refs: [ref], sourceTypes: ["source"] })
           }
         } else if (actionType === "open_page") {
           const a = action as RawOpenPageAction
           const url = cleanTraceUrl(a.url ?? "")
-          searchActions.push({ type: "open_page", url })
+          const ref = `open#${openIndex++}`
+          if (url) searchActions.push({ type: "open_page", url })
           if (url) openedUrls.add(url)
+          if (url && isLikelyPageUrl(url)) {
+            addTraceSource(sources, { url, title: url }, { refs: [ref], sourceTypes: ["opened"] })
+          }
 
           // open_page can also return sources (content chunks it read)
           for (const s of a.sources ?? []) {
-            addTraceSource(sources, s)
+            addTraceSource(sources, s, { refs: [ref], sourceTypes: ["source"] })
           }
         } else if (actionType === "find_in_page") {
           const a = action as RawFindInPageAction
-          searchActions.push({ type: "find_in_page", url: cleanTraceUrl(a.url ?? ""), pattern: a.pattern })
+          const url = cleanTraceUrl(a.url ?? "")
+          const ref = `find#${findIndex++}`
+          if (url || a.pattern) {
+            searchActions.push({ type: "find_in_page", url, pattern: a.pattern })
+          }
+          if (url && isLikelyPageUrl(url)) {
+            addTraceSource(sources, { url, title: url }, { refs: [ref], sourceTypes: ["find"] })
+          }
         }
       } else {
         // No action field — API returned only { id, status, type }.
         // Record a generic "search" action with the original query.
+        searchIndex++
         searchActions.push({ type: "search", query: effectiveQuery })
       }
     }
@@ -242,11 +265,12 @@ export async function runTrace(
           // Inline citations (url_citation annotations)
           for (const ann of block.annotations ?? []) {
             if (ann.type === "url_citation" && ann.url) {
+              const ref = `citation#${citationIndex++}`
               addTraceSource(sources, {
                 url: ann.url,
                 title: ann.title ?? ann.url,
                 // no snippet for inline citations — they reference a position in text
-              })
+              }, { refs: [ref], sourceTypes: ["citation"] })
             }
           }
         }
@@ -261,7 +285,10 @@ export async function runTrace(
   // per-URL, which is not reliable without structured output.
   // summaries come from action.sources[].snippet when available.
 
-  const limitedSources = sources.slice(0, maxResults)
+  const filteredSources = domainFilter
+    ? sources.filter((source) => isUrlInDomain(source.url, domainFilter))
+    : sources
+  const limitedSources = filteredSources.slice(0, maxResults)
   const entries: TraceEntry[] = limitedSources.map((src, i) => ({
     rank: i + 1,
     url: src.url,
@@ -272,6 +299,8 @@ export async function runTrace(
     pageType: inferPageType(src.url),
     opened: openedUrls.has(src.url),
     citation: src.snippet,
+    refs: src.refs,
+    sourceTypes: src.sourceTypes,
   }))
 
   // ── Optional local AEO audit on each URL ─────────────────────────────────
@@ -285,7 +314,7 @@ export async function runTrace(
     model,
     timestamp: new Date().toISOString(),
     searchActions,
-    sources,
+    sources: filteredSources,
     results: entries,
     responseText,
     isSimulated,
@@ -294,9 +323,14 @@ export async function runTrace(
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function buildUserPrompt(query: string, maxResults: number): string {
+function buildUserPrompt(query: string, maxResults: number, domainFilter?: string): string {
+  const domainInstruction = domainFilter
+    ? `Only search, open, cite, and summarize URLs whose hostname is ${domainFilter} or one of its subdomains. Do not use lookalike domains, alternate TLDs, or unrelated brands. If fewer than ${maxResults} matching pages exist, return fewer results.\n\n`
+    : ""
+
   return (
     `Search for: ${query}\n\n` +
+    domainInstruction +
     `Open and read the top ${maxResults} results. ` +
     `For each page you open, provide a 2-3 sentence summary of the main content. ` +
     `Cite your sources inline.`
@@ -306,15 +340,38 @@ function buildUserPrompt(query: string, maxResults: number): string {
 function buildEffectiveQuery(query: string, domain?: string): string {
   if (!domain || /\bsite:/i.test(query)) return query
 
-  const normalizedDomain = domain
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/.*$/, "")
+  const normalizedDomain = normalizeDomain(domain)
 
   return normalizedDomain ? `site:${normalizedDomain} ${query}` : query
 }
 
-function addTraceSource(sources: TraceSource[], source: RawSource): void {
+function extractSiteDomain(query: string): string | undefined {
+  const match = query.match(/\bsite:([^\s]+)/i)
+  return match ? normalizeDomain(match[1]) : undefined
+}
+
+function buildDomainFilter(domain?: string): string | undefined {
+  const normalized = normalizeDomain(domain)
+  return normalized || undefined
+}
+
+function normalizeDomain(domain?: string): string {
+  if (!domain) return ""
+
+  return domain
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/^site:/i, "")
+    .replace(/^\*\./, "")
+    .replace(/\/.*$/, "")
+    .replace(/:\d+$/, "")
+    .replace(/\.$/, "")
+    .replace(/^www\./i, "")
+    .toLowerCase()
+}
+
+function addTraceSource(sources: TraceSource[], source: RawSource, meta: TraceSourceMeta = {}): void {
   const url = cleanTraceUrl(source.url)
   if (!url) return
 
@@ -326,10 +383,27 @@ function addTraceSource(sources: TraceSource[], source: RawSource): void {
     if (!existing.snippet && source.snippet) {
       existing.snippet = source.snippet
     }
+    existing.refs = appendUnique(existing.refs, meta.refs)
+    existing.sourceTypes = appendUnique(existing.sourceTypes, meta.sourceTypes)
     return
   }
 
-  sources.push({ url, title: source.title ?? url, snippet: source.snippet })
+  sources.push({
+    url,
+    title: source.title ?? url,
+    snippet: source.snippet,
+    refs: meta.refs ? [...meta.refs] : undefined,
+    sourceTypes: meta.sourceTypes ? [...meta.sourceTypes] : undefined,
+  })
+}
+
+function appendUnique(target: string[] | undefined, values: string[] | undefined): string[] | undefined {
+  if (!values || values.length === 0) return target
+  const next = target ? [...target] : []
+  for (const value of values) {
+    if (!next.includes(value)) next.push(value)
+  }
+  return next
 }
 
 function cleanTraceUrl(rawUrl: string): string {
@@ -342,6 +416,24 @@ function cleanTraceUrl(rawUrl: string): string {
     return cleaned.endsWith("?") ? cleaned.slice(0, -1) : cleaned
   } catch {
     return rawUrl
+  }
+}
+
+function isUrlInDomain(rawUrl: string, domain: string): boolean {
+  try {
+    const host = new URL(rawUrl).hostname.replace(/\.$/, "").replace(/^www\./i, "").toLowerCase()
+    return host === domain || host.endsWith(`.${domain}`)
+  } catch {
+    return false
+  }
+}
+
+function isLikelyPageUrl(rawUrl: string): boolean {
+  try {
+    const pathname = new URL(rawUrl).pathname.toLowerCase()
+    return !/\.(avif|css|gif|ico|jpe?g|js|json|map|mp3|mp4|png|svg|webm|webp|woff2?)$/.test(pathname)
+  } catch {
+    return true
   }
 }
 
@@ -405,6 +497,7 @@ async function simulateFallback(
   maxResults: number,
   model: string,
 ): Promise<TraceResult> {
+  const domainFilter = buildDomainFilter(extractSiteDomain(effectiveQuery))
   const systemPrompt = `You are a web search analysis agent.
 Your task is to simulate what a web search engine would return for the given query.
 Return ONLY valid JSON with this exact structure (no markdown wrappers):
@@ -419,7 +512,11 @@ Return ONLY valid JSON with this exact structure (no markdown wrappers):
     }
   ]
 }
-Include up to ${maxResults} results. Use realistic, plausible URLs for the query domain.`
+Include up to ${maxResults} results. Use realistic, plausible URLs for the query domain.${
+    domainFilter
+      ? ` Only include URLs whose hostname is ${domainFilter} or one of its subdomains. Do not include lookalike domains, alternate TLDs, or unrelated brands.`
+      : ""
+  }`
 
   const response = await client.chat.completions.create({
     model: model.includes("gpt-4o") ? "gpt-4o-mini" : model,
@@ -441,6 +538,7 @@ Include up to ${maxResults} results. Use realistic, plausible URLs for the query
   }
 
   const entries: TraceEntry[] = (parsed.results ?? [])
+    .filter((r) => !domainFilter || isUrlInDomain(String(r["url"] ?? ""), domainFilter))
     .slice(0, maxResults)
     .map((r, i) => ({
       rank: i + 1,
@@ -450,6 +548,8 @@ Include up to ${maxResults} results. Use realistic, plausible URLs for the query
       topics: Array.isArray(r["topics"]) ? (r["topics"] as unknown[]).map(String) : [],
       pageType: String(r["pageType"] ?? "other"),
       opened: false,
+      refs: ["simulated"],
+      sourceTypes: ["source"],
     }))
 
   return {

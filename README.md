@@ -4,8 +4,18 @@
 
 **Most websites don't exist for AI.**
 
-This CLI shows you if yours does -
+This terminal CLI shows you if yours does -
 and what AI search actually sees.
+
+[![npm](https://img.shields.io/npm/v/symphony-prelude?color=01696f&label=npm)](https://www.npmjs.com/package/symphony-prelude) [![license](https://img.shields.io/github/license/LucianoGuido/symphony-prelude?color=01696f)](./LICENSE) [![stars](https://img.shields.io/github/stars/LucianoGuido/symphony-prelude?style=social)](https://github.com/LucianoGuido/symphony-prelude/stargazers) [![npm downloads](https://img.shields.io/npm/dm/symphony-prelude?color=01696f)](https://www.npmjs.com/package/symphony-prelude)
+
+⭐ If this saves you from AI invisibility, [star it](https://github.com/LucianoGuido/symphony-prelude) — it helps others find it too.
+
+<br/>
+
+![Prelude demo](assets/demo.gif)
+
+<br/>
 
 [Quick Start](#quick-start) · [Fix with Conservatory](#fix-with-conservatory) · [How It Works](#how-it-works) · [Commands](#commands)
 
@@ -36,9 +46,9 @@ Prelude gives you two views into AI search:
 
 **`symphony-prelude trace`** — What AI actually sees.
 
-Prelude tells you what the model did.
+Prelude tells you what the model did in your terminal.
 
-Conservatory tells you what to fix — and fixes it for you.
+Conservatory turns that diagnosis into full reports, downloadable PDFs, auto-fix, and GitHub PRs.
 
 ## Run the CLI, then fix with Conservatory
 
@@ -46,9 +56,9 @@ Conservatory tells you what to fix — and fixes it for you.
 npx symphony-prelude audit https://conservatory.app
 ```
 
-Prelude gives you a local AI-readiness report.
+Prelude gives you a fast local AI-readiness diagnosis in your terminal.
 
-If the report finds missing schema, weak headings, unclear metadata, thin trust signals, or AI crawler issues, bring the findings into **[Conservatory](https://conservatory.app)** to generate reviewable GitHub PRs with the exact code changes.
+If the diagnosis finds missing schema, weak headings, unclear metadata, thin trust signals, or AI crawler issues, run the full workflow in **[Conservatory](https://conservatory.app)** to generate a downloadable PDF report and reviewable GitHub PRs with the exact code changes.
 
 ## A new category
 
@@ -89,23 +99,26 @@ npx symphony-prelude trace "best CRM for startups"
 # Trace focused on your domain
 npx symphony-prelude trace "product overview" --domain your-site.com
 
+# Trace a real public domain
+npx symphony-prelude trace "ai search readiness" --domain conservatory.app
+
 # Trace + run local AEO audit on every discovered URL
-npx symphony-prelude trace "best CRM for startups" --audit --format markdown
+npx symphony-prelude trace "best CRM for startups" --audit
 ```
 
 ## Fix with Conservatory
 
-Prelude is the free diagnostic layer:
+Prelude is the free terminal diagnostic layer:
 
 ```bash
-npx symphony-prelude audit https://your-site.com --format markdown --output prelude-report.md
+npx symphony-prelude audit https://your-site.com
 ```
 
-Conservatory is the remediation layer:
+Conservatory is the report and remediation layer:
 
 1. Run the audit.
 2. Review the findings.
-3. Use **[Conservatory](https://conservatory.app)** to turn fixable issues into GitHub PRs.
+3. Use **[Conservatory](https://conservatory.app)** for a full AI search audit, downloadable PDF report, auto-fix, and GitHub PRs.
 
 That loop is the point:
 
@@ -135,22 +148,12 @@ If not - that's your problem.
 
 ### `symphony-prelude audit <url>`
 
-Local heuristic analysis — **no API key required, 100% free.**
+Local terminal heuristic analysis — **no API key required, 100% free.**
 
 Checks: headings hierarchy · meta tags · schema.org · content chunking · trust signals · robots.txt (GPTBot, ClaudeBot, Perplexity…)
 
 ```bash
-# Terminal output (default)
 symphony-prelude audit https://example.com
-
-# JSON output for pipelines / Conservatory import
-symphony-prelude audit https://example.com --format json
-
-# CSV for spreadsheets
-symphony-prelude audit https://example.com --format csv
-
-# Markdown report
-symphony-prelude audit https://example.com --format markdown --output report.md
 ```
 
 ---
@@ -164,7 +167,8 @@ Uses the **Responses API** with `tools: [{ type: "web_search_preview" }]`. Captu
 - URLs opened (`open_page` actions) → marked `opened: true` in output
 - Sources per action via `include: ["web_search_call.action.sources"]`
 - Inline citations from message `url_citation` annotations
-- Full structured JSON / CSV / Markdown output
+- Top URLs with Rank, URL, Title, Snippet, Type, and Ref
+- Trace Insights with good signals, warnings, and opportunities
 
 > **Honesty note:** This traces OpenAI's `web_search_preview` API tool — which approximates but does **not** replicate ChatGPT Search exactly. The ChatGPT product may use personalisation, session context, and additional ranking signals not available via the API. `topics` are not automatically populated (the API does not return them structured); `summary` comes from `action.sources[].snippet` when available. Results are observable and reproducible, but may differ from a logged-in ChatGPT session.
 
@@ -172,7 +176,7 @@ Uses the **Responses API** with `tools: [{ type: "web_search_preview" }]`. Captu
 
 The trace command requires an OpenAI API key to simulate real-time LLM behavior. If you don’t have a key or want to see the results without any setup, you can run a free trace directly on Conservatory.app.
 
-Get the same deep insights into what ChatGPT sees, plus immediate access to our remediation workflow and the April 28 Founders Cohort.
+Get the same deep insights into what ChatGPT sees, plus immediate access to full reports, downloadable PDFs, auto-fix, and GitHub PRs.
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -180,8 +184,13 @@ export OPENAI_API_KEY=sk-...
 # Basic trace
 symphony-prelude trace "best CRM for startups"
 
-# Restrict to your domain (adds site: prefix)
+# Restrict to a domain
 symphony-prelude trace "product overview" --domain acme.com
+
+# Works with any public domain
+symphony-prelude trace "pricing" --domain stripe.com
+symphony-prelude trace "running shoes" --domain nike.com
+symphony-prelude trace "ai search readiness" --domain conservatory.app
 
 # Get more results
 symphony-prelude trace "SEO tools" --max-results 10
@@ -189,17 +198,8 @@ symphony-prelude trace "SEO tools" --max-results 10
 # Also run local AEO audit on each discovered URL
 symphony-prelude trace "SEO tools" --audit
 
-# JSON output (machine-readable, crossable with Conservatory exports)
-symphony-prelude trace "SEO tools" --format json --output trace.json
-
-# CSV output (crossable with Google Search Console / Ahrefs)
-symphony-prelude trace "SEO tools" --format csv --output trace.csv
-
-# Markdown report (shareable, commit to repo)
-symphony-prelude trace "SEO tools" --format markdown --output trace.md
-
 # Batch mode: one query per line
-symphony-prelude trace --query-file queries.txt --domain acme.com --format csv --output batch.csv
+symphony-prelude trace --query-file queries.txt --domain acme.com
 
 # Use a specific model
 symphony-prelude trace "SEO tools" --model gpt-4o
@@ -210,12 +210,10 @@ symphony-prelude trace "SEO tools" --model gpt-4o
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--max-results <n>` | `5` | Max URLs to capture per query |
-| `--domain <domain>` | — | Restrict to domain (adds `site:` prefix) |
+| `--domain <domain>` | — | Restrict to a domain. Prelude adds `site:<domain>` and filters results to that domain/subdomains. |
 | `--audit` | false | Run local AEO audit on each discovered URL |
 | `--model <model>` | `o4-mini` | OpenAI model. Use `o4-mini` for full tracing, `gpt-4o` for broad source discovery |
 | `--query-file <file>` | — | Batch mode: one query per line |
-| `--format <fmt>` | `terminal` | `terminal` · `json` · `csv` · `markdown` |
-| `--output <file>` | — | Write to file instead of stdout |
 
 **Recommended models for real `web_search_preview`:**
 - `o4-mini` *(recommended for full tracing: search, open_page, find_in_page)*
@@ -243,7 +241,7 @@ symphony-prelude trace
   → action.sources  → URLs the model actually read
   → url_citation annotations → inline citations
   → [optional --audit] Local AEO audit on each URL
-  → Export: JSON / CSV / Markdown
+  → Terminal Top URLs + Trace Insights
 ```
 
 The two commands are designed to work together:
@@ -271,12 +269,17 @@ The two commands are designed to work together:
   1. https://example.com/crm-guide
      "The top CRM tools for early-stage startups…"
 
-  Top Results (5)
-#1 [OPENED] https://example.com/crm-guide
-   The Best CRMs for Startups in 2025
-   Type: blog_post
-   AEO Score: 72/100 | Schema: Article, FAQPage | FAQ ✓
-   [HIGH] Missing Organization schema
+  Top URLs (5)
+  Rank  URL                                Title                          Snippet                                Type              Ref
+  #1    https://example.com/crm-guide      The Best CRMs for Startups     The top CRM tools for early...        opened, source    search#0, open#0
+
+  Trace Insights
+  Good signals:
+    - OpenAI web search opened 2 pages from the target set.
+  Warnings:
+    - No snippets were returned for some top URLs.
+  Opportunities:
+    - Add clearer extractable summaries, headings, and metadata.
 ```
 
 ---
@@ -286,10 +289,10 @@ The two commands are designed to work together:
 Prelude diagnoses. **[Conservatory](https://conservatory.app) fixes.**
 
 ```
-symphony-prelude trace --domain your-site.com --format json --output trace.json
-# → Cross with Conservatory issue exports
-# → See which URLs OpenAI web search opens and whether they have fixable issues
-# → Conservatory generates GitHub PRs for every finding
+symphony-prelude trace "product overview" --domain your-site.com
+# → See which URLs OpenAI web search opens
+# → Review Top URLs and Trace Insights in the terminal
+# → Run the full workflow in Conservatory for PDFs, auto-fix, and GitHub PRs
 ```
 
 Future integration (when Conservatory API ships):
